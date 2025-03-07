@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 
 const app = express();
-const port = 9999;
+const port = 3000;
 
 // Set up SQLite database with Render's persistent disk path
 const db = new sqlite3.Database('/opt/render/project/src/fish.db', (err) => {
@@ -38,6 +38,15 @@ const upload = multer({ storage });
 app.use(express.static('public'));
 app.use('/uploads', express.static('public/uploads'));
 app.use(express.json());
+
+// Add CSP header to allow 'unsafe-eval'
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    );
+    next();
+});
 
 // Routes
 app.get('/fish', (req, res) => {
