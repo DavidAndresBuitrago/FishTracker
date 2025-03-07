@@ -7,6 +7,10 @@ const fs = require('fs');
 const app = express();
 const port = 1212;
 
+// Middleware for parsing JSON and URL-encoded data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Determine database path based on environment
 const isLocal = process.env.NODE_ENV !== 'production';
 const dbPath = isLocal ? './fish.db' : '/opt/render/project/src/fish.db';
@@ -57,7 +61,15 @@ const upload = multer({ storage });
 // Serve static files
 app.use(express.static('public'));
 app.use('/uploads', express.static('public/uploads'));
-app.use(express.json());
+
+// CSP header as fallback
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    );
+    next();
+});
 
 // Routes
 app.get('/fish', (req, res) => {
@@ -70,7 +82,7 @@ app.get('/fish', (req, res) => {
     }
     db.all(query, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+        res.json(rows || []);
     });
 });
 
@@ -82,10 +94,17 @@ app.post('/fish', upload.single('photo'), (req, res) => {
         return res.status(400).json({ error: 'User ID is required' });
     }
 
+    if (!species || !size || !weight || !catchMethod || !location || !date) {
+        return res.status(400).json({ error: 'All fields (species, size, weight, catchMethod, location, date) are required' });
+    }
+
     db.run(`INSERT INTO fish (userId, species, size, weight, catchMethod, location, date, photoPath) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [userId, species, size, weight, catchMethod, location, date, photoPath],
         (err) => {
-            if (err) return res.status(500).json({ error: err.message });
+            if (err) {
+                console.error('Database error:', err.message);
+                return res.status(500).json({ error: 'Failed to add fish: ' + err.message });
+            }
             res.json({ message: 'Fish added successfully!' });
         }
     );

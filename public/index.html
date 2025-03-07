@@ -136,7 +136,13 @@
 
             try {
                 const response = await fetch('/fish', { method: 'POST', body: formData });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const result = await response.json();
+                if (!result || !result.message) {
+                    throw new Error('Invalid response from server');
+                }
                 alert(result.message);
                 loadFish(currentUser.uid);
                 document.getElementById('fishForm').reset();
@@ -148,6 +154,9 @@
         async function loadFish(userId) {
             try {
                 const response = await fetch(`/fish?userId=${userId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const fishList = await response.json();
                 const fishListDiv = document.getElementById('fishList');
                 fishListDiv.innerHTML = '';
