@@ -151,4 +151,16 @@
                 const fishList = await response.json();
                 const fishListDiv = document.getElementById('fishList');
                 fishListDiv.innerHTML = '';
-                fishList.forEach(f
+                fishList.forEach(fish => {
+                    const fishCard = document.createElement('div');
+                    fishCard.className = 'fish-card';
+                    fishCard.innerHTML = `${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}<div class="fish-details"><h3>${fish.species}</h3><p>Size: ${fish.size}</p><p>Weight: ${fish.weight}</p><p>Caught: ${fish.catchMethod}</p><p>Location: ${fish.location}</p><p>Date: ${fish.date}</p></div>`;
+                    fishListDiv.appendChild(fishCard);
+                });
+            } catch (err) {
+                console.error('Error loading fish:', err);
+            }
+        }
+    </script>
+</body>
+</html>
