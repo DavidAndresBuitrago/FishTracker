@@ -22,46 +22,57 @@ if (!fs.existsSync(dbPath)) {
         console.log('Created database file:', dbPath);
     } catch (err) {
         console.error('Failed to create database file:', err.message);
-        process.exit(1);
     }
 } else {
     console.log('Database file exists:', dbPath);
 }
 
 // Set up SQLite database with verbose error handling
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Failed to connect to SQLite database:', err.message);
-        process.exit(1);
-    }
-    console.log('Connected to SQLite database at:', dbPath);
-});
-
-// Recreate table to ensure correct schema (drops and recreates if it exists)
-db.serialize(() => {
-    db.run('DROP TABLE IF EXISTS fish', (err) => {
-        if (err) console.error('Failed to drop table:', err.message);
-        else console.log('Dropped fish table if it existed.');
-    });
-
-    db.run(`CREATE TABLE fish (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        userId TEXT,
-        species TEXT,
-        size TEXT,
-        weight TEXT,
-        catchMethod TEXT,
-        location TEXT,
-        date TEXT,
-        photoPath TEXT
-    )`, (err) => {
+let db;
+try {
+    db = new sqlite3.Database(dbPath, (err) => {
         if (err) {
-            console.error('Table creation error:', err.message);
-        } else {
-            console.log('Fish table created or verified.');
+            console.error('Failed to connect to SQLite database:', err.message);
+            throw err;
         }
+        console.log('Connected to SQLite database at:', dbPath);
     });
-});
+} catch (err) {
+    console.error('Database initialization failed, proceeding without database:', err.message);
+    db = null; // Fallback to allow server to start
+}
+
+// Attempt to recreate table with error handling
+if (db) {
+    try {
+        db.serialize(() => {
+            db.run('DROP TABLE IF EXISTS fish', (err) => {
+                if (err) console.error('Failed to drop table:', err.message);
+                else console.log('Dropped fish table if it existed.');
+            });
+
+            db.run(`CREATE TABLE fish (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                userId TEXT,
+                species TEXT,
+                size TEXT,
+                weight TEXT,
+                catchMethod TEXT,
+                location TEXT,
+                date TEXT,
+                photoPath TEXT
+            )`, (err) => {
+                if (err) {
+                    console.error('Table creation error:', err.message);
+                } else {
+                    console.log('Fish table created or verified.');
+                }
+            });
+        });
+    } catch (err) {
+        console.error('Table recreation failed:', err.message);
+    }
+}
 
 // Set up file storage for photos with robust directory creation
 const uploadDir = isLocal ? './public/uploads/' : '/opt/render/project/src/public/uploads/';
@@ -92,7 +103,7 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
-const upload = multer({ storage });
+const upload = multer({ storage: storage || { destination: '/tmp/' } }); // Fallback to /tmp if storage fails
 
 // Serve static files
 app.use(express.static('public'));
@@ -107,8 +118,9 @@ app.use((req, res, next) => {
     next();
 });
 
-// Routes
+// Routes with database fallback
 app.get('/fish', (req, res) => {
+    if (!db) return res.status(500).json({ error: 'Database not available' });
     const userId = req.query.userId;
     let query = 'SELECT * FROM fish';
     let params = [];
@@ -126,6 +138,7 @@ app.get('/fish', (req, res) => {
 });
 
 app.post('/fish', upload.single('photo'), (req, res) => {
+    if (!db) return res.status(500).json({ error: 'Database not available' });
     console.log('POST /fish - Received body:', req.body);
     console.log('POST /fish - Received file:', req.file);
     const { species, size, weight, catchMethod, location, date, userId } = req.body;
