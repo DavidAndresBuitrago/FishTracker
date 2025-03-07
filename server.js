@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 
 const app = express();
-const port = 3000;
+const port = 1212;
 
 // Set up SQLite database with Render's persistent disk path
 const db = new sqlite3.Database('/opt/render/project/src/fish.db', (err) => {
