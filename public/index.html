@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fish Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Fish Tracker</h1>
+        <!-- Authentication Section -->
+        <div id="authSection">
+            <h2>Sign Up / Log In</h2>
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <button onclick="signUp()">Sign Up</button>
+            <button onclick="logIn()">Log In</button>
+            <button onclick="logOut()">Log Out</button>
+            <p id="authStatus"></p>
+        </div>
+
+        <!-- Fish Form (hidden until logged in) -->
+        <div id="fishFormSection" style="display: none;">
+            <form id="fishForm" enctype="multipart/form-data">
+                <label for="species">Species:</label>
+                <input type="text" id="species" required>
+                <label for="size">Size (e.g., 12 inches):</label>
+                <input type="text" id="size" required>
+                <label for="weight">Weight (e.g., 2 lbs):</label>
+                <input type="text" id="weight" required>
+                <label for="catchMethod">Catch Method:</label>
+                <input type="text" id="catchMethod" required>
+                <label for="location">Location:</label>
+                <input type="text" id="location" required>
+                <label for="date">Date Caught:</label>
+                <input type="date" id="date" required>
+                <label for="photo">Photo:</label>
+                <input type="file" id="photo" accept="image/*">
+                <button type="submit">Add Fish</button>
+            </form>
+            <div id="fishList"></div>
+        </div>
+    </div>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
