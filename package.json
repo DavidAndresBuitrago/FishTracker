@@ -13,7 +13,6 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
-    "firebase": "^10.7.1",
     "multer": "^1.4.5-lts.1",
     "sqlite3": "^5.1.6"
   }
