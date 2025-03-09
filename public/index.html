@@ -20,8 +20,24 @@
             <p id="authStatus"></p>
         </div>
 
-        <!-- Fish Form (hidden until logged in) -->
+        <!-- Fish Form and Folders (hidden until logged in) -->
         <div id="fishFormSection" style="display: none;">
+            <!-- Folder Management -->
+            <h2>Folders</h2>
+            <div>
+                <input type="text" id="folderName" placeholder="New Folder Name">
+                <button onclick="createFolder()">Create Folder</button>
+            </div>
+            <div id="folderList"></div>
+            <div>
+                <label for="filterFolder">Filter by Folder:</label>
+                <select id="filterFolder" onchange="loadFish(currentUser.uid)">
+                    <option value="">All Folders</option>
+                </select>
+            </div>
+
+            <!-- Fish Form -->
+            <h2>Add Fish</h2>
             <form id="fishForm" enctype="multipart/form-data">
                 <label for="species">Species:</label>
                 <input type="text" id="species" required>
@@ -37,6 +53,10 @@
                 <input type="date" id="date" required>
                 <label for="photo">Photo:</label>
                 <input type="file" id="photo" accept="image/*">
+                <label for="folderId">Folder:</label>
+                <select id="folderId">
+                    <option value="">No Folder</option>
+                </select>
                 <button type="submit">Add Fish</button>
             </form>
             <div id="fishList"></div>
@@ -48,12 +68,12 @@
 
         // Replace with your Firebase configuration from Firebase Console
         const firebaseConfig = {
-            apiKey: "AIzaSyBCXM5cUQxCU8InN0QSLQXcRLm1GiFbW1Y",
-            authDomain: "fishtracker-9e522.firebaseapp.com",
-            projectId: "fishtracker-9e522",
-            storageBucket: "fishtracker-9e522.firebasestorage.app",
-            messagingSenderId: "407930383316",
-            appId: "1:407930383316:web:c76cda3165da243d25c441"
+            apiKey: "your-actual-api-key",
+            authDomain: "your-auth-domain.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket.appspot.com",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -105,11 +125,15 @@
             if (currentUser) {
                 authStatus.textContent = `Logged in as: ${currentUser.email}`;
                 fishFormSection.style.display = 'block';
+                loadFolders(currentUser.uid);
                 loadFish(currentUser.uid);
             } else {
                 authStatus.textContent = 'Not logged in';
                 fishFormSection.style.display = 'none';
                 document.getElementById('fishList').innerHTML = '';
+                document.getElementById('folderList').innerHTML = '';
+                document.getElementById('filterFolder').innerHTML = '<option value="">All Folders</option>';
+                document.getElementById('folderId').innerHTML = '<option value="">No Folder</option>';
             }
         }
 
@@ -117,6 +141,81 @@
             currentUser = user;
             updateAuthStatus();
         });
+
+        async function loadFolders(userId) {
+            try {
+                const response = await fetch(`/folders?userId=${userId}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const folders = await response.json();
+                const folderListDiv = document.getElementById('folderList');
+                const folderSelect = document.getElementById('folderId');
+                const filterFolderSelect = document.getElementById('filterFolder');
+                folderListDiv.innerHTML = '';
+                folderSelect.innerHTML = '<option value="">No Folder</option>';
+                filterFolderSelect.innerHTML = '<option value="">All Folders</option>';
+                folders.forEach(folder => {
+                    // Folder List with Delete Button
+                    const folderDiv = document.createElement('div');
+                    folderDiv.innerHTML = `<span>${folder.name}</span> <button onclick="deleteFolder(${folder.id}, '${userId}')">Delete</button>`;
+                    folderListDiv.appendChild(folderDiv);
+
+                    // Folder Dropdown for Adding Fish
+                    const option = document.createElement('option');
+                    option.value = folder.id;
+                    option.textContent = folder.name;
+                    folderSelect.appendChild(option);
+
+                    // Folder Dropdown for Filtering
+                    const filterOption = document.createElement('option');
+                    filterOption.value = folder.id;
+                    filterOption.textContent = folder.name;
+                    filterFolderSelect.appendChild(filterOption);
+                });
+            } catch (err) {
+                console.error('Error loading folders:', err);
+            }
+        }
+
+        window.createFolder = async function() {
+            if (!currentUser) {
+                alert('Please log in to create a folder.');
+                return;
+            }
+            const name = document.getElementById('folderName').value;
+            if (!name) {
+                alert('Please enter a folder name.');
+                return;
+            }
+            try {
+                const response = await fetch('/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser.uid, name })
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                alert(result.message);
+                document.getElementById('folderName').value = '';
+                loadFolders(currentUser.uid);
+            } catch (err) {
+                alert('Error creating folder: ' + err.message);
+            }
+        };
+
+        window.deleteFolder = async function(folderId, userId) {
+            if (confirm('Are you sure you want to delete this folder? Fish entries will be moved to "No Folder".')) {
+                try {
+                    const response = await fetch(`/folder/${folderId}?userId=${userId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    loadFolders(userId);
+                    loadFish(userId);
+                } catch (err) {
+                    alert('Error deleting folder: ' + err.message);
+                }
+            }
+        };
 
         document.getElementById('fishForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -133,16 +232,13 @@
             formData.append('date', document.getElementById('date').value);
             formData.append('photo', document.getElementById('photo').files[0]);
             formData.append('userId', currentUser.uid);
+            formData.append('folderId', document.getElementById('folderId').value);
 
             try {
                 const response = await fetch('/fish', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const result = await response.json();
-                if (!result || !result.message) {
-                    throw new Error('Invalid response from server');
-                }
+                if (!result || !result.message) throw new Error('Invalid response from server');
                 alert(result.message);
                 loadFish(currentUser.uid);
                 document.getElementById('fishForm').reset();
@@ -153,23 +249,48 @@
 
         async function loadFish(userId) {
             try {
-                const response = await fetch(`/fish?userId=${userId}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+                const folderId = document.getElementById('filterFolder').value;
+                const url = folderId ? `/fish?userId=${userId}&folderId=${folderId}` : `/fish?userId=${userId}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const fishList = await response.json();
                 const fishListDiv = document.getElementById('fishList');
                 fishListDiv.innerHTML = '';
                 fishList.forEach(fish => {
                     const fishCard = document.createElement('div');
                     fishCard.className = 'fish-card';
-                    fishCard.innerHTML = `${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}<div class="fish-details"><h3>${fish.species}</h3><p>Size: ${fish.size}</p><p>Weight: ${fish.weight}</p><p>Caught: ${fish.catchMethod}</p><p>Location: ${fish.location}</p><p>Date: ${fish.date}</p></div>`;
+                    fishCard.innerHTML = `
+                        ${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}
+                        <div class="fish-details">
+                            <h3>${fish.species}</h3>
+                            <p>Size: ${fish.size}</p>
+                            <p>Weight: ${fish.weight}</p>
+                            <p>Caught: ${fish.catchMethod}</p>
+                            <p>Location: ${fish.location}</p>
+                            <p>Date: ${fish.date}</p>
+                            <button onclick="deleteFish(${fish.id}, '${userId}')">Delete</button>
+                        </div>
+                    `;
                     fishListDiv.appendChild(fishCard);
                 });
             } catch (err) {
                 console.error('Error loading fish:', err);
             }
         }
+
+        window.deleteFish = async function(fishId, userId) {
+            if (confirm('Are you sure you want to delete this fish entry?')) {
+                try {
+                    const response = await fetch(`/fish/${fishId}?userId=${userId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    loadFish(userId);
+                } catch (err) {
+                    alert('Error deleting fish: ' + err.message);
+                }
+            }
+        };
     </script>
 </body>
 </html>

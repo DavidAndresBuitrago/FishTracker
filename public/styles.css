@@ -12,7 +12,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
-h1 {
+h1, h2 {
     text-align: center;
     color: #333;
 }
@@ -20,7 +20,7 @@ label {
     display: block;
     margin: 10px 0 5px;
 }
-input, button {
+input, button, select {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
@@ -50,4 +50,27 @@ button:hover {
 }
 .fish-details {
     flex: 1;
+}
+.fish-details button {
+    background-color: #ff4444;
+    width: auto;
+    padding: 5px 10px;
+}
+.fish-details button:hover {
+    background-color: #cc0000;
+}
+#folderList div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px;
+    border-bottom: 1px solid #ddd;
+}
+#folderList button {
+    background-color: #ff4444;
+    width: auto;
+    padding: 5px 10px;
+}
+#folderList button:hover {
+    background-color: #cc0000;
 }
