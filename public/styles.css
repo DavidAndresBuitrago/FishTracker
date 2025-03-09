@@ -59,18 +59,22 @@ button:hover {
 .fish-details button:hover {
     background-color: #cc0000;
 }
-#folderList div {
+.fish-map {
+    width: 100%;
+    margin-top: 10px;
+}
+#folderList div, #spotList div {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 5px;
     border-bottom: 1px solid #ddd;
 }
-#folderList button {
+#folderList button, #spotList button {
     background-color: #ff4444;
     width: auto;
     padding: 5px 10px;
 }
-#folderList button:hover {
+#folderList button:hover, #spotList button:hover {
     background-color: #cc0000;
 }

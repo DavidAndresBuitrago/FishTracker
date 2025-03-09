@@ -55,6 +55,10 @@ if (db) {
                 if (err) console.error('Failed to drop folders table:', err.message);
                 else console.log('Dropped folders table if it existed.');
             });
+            db.run('DROP TABLE IF EXISTS spots', (err) => {
+                if (err) console.error('Failed to drop spots table:', err.message);
+                else console.log('Dropped spots table if it existed.');
+            });
 
             // Create folders table
             db.run(`CREATE TABLE folders (
@@ -66,7 +70,19 @@ if (db) {
                 else console.log('Folders table created.');
             });
 
-            // Create fish table with folderId
+            // Create spots table
+            db.run(`CREATE TABLE spots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                userId TEXT NOT NULL,
+                name TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL
+            )`, (err) => {
+                if (err) console.error('Spots table creation error:', err.message);
+                else console.log('Spots table created.');
+            });
+
+            // Create fish table with spotId, customLatitude, and customLongitude
             db.run(`CREATE TABLE fish (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 userId TEXT NOT NULL,
@@ -78,7 +94,11 @@ if (db) {
                 date TEXT,
                 photoPath TEXT,
                 folderId INTEGER,
-                FOREIGN KEY (folderId) REFERENCES folders(id)
+                spotId INTEGER,
+                customLatitude REAL,
+                customLongitude REAL,
+                FOREIGN KEY (folderId) REFERENCES folders(id),
+                FOREIGN KEY (spotId) REFERENCES spots(id)
             )`, (err) => {
                 if (err) console.error('Fish table creation error:', err.message);
                 else console.log('Fish table created or verified.');
@@ -110,6 +130,7 @@ try {
     console.error('Uploads directory is not writable:', err.message);
 }
 
+// Set up Multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir);
@@ -128,7 +149,7 @@ app.use('/uploads', express.static('public/uploads'));
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+        "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com https://unpkg.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:;"
     );
     next();
 });
@@ -138,10 +159,10 @@ app.get('/fish', (req, res) => {
     if (!db) return res.status(500).json({ error: 'Database not available' });
     const userId = req.query.userId;
     const folderId = req.query.folderId;
-    let query = 'SELECT * FROM fish WHERE userId = ?';
+    let query = 'SELECT f.*, s.name as spotName, s.latitude as spotLatitude, s.longitude as spotLongitude FROM fish f LEFT JOIN spots s ON f.spotId = s.id WHERE f.userId = ?';
     let params = [userId];
     if (folderId) {
-        query += ' AND folderId = ?';
+        query += ' AND f.folderId = ?';
         params.push(folderId);
     }
     db.all(query, params, (err, rows) => {
@@ -157,7 +178,7 @@ app.post('/fish', upload.single('photo'), (req, res) => {
     if (!db) return res.status(500).json({ error: 'Database not available' });
     console.log('POST /fish - Received body:', req.body);
     console.log('POST /fish - Received file:', req.file);
-    const { species, size, weight, catchMethod, location, date, userId, folderId } = req.body;
+    const { species, size, weight, catchMethod, location, date, userId, folderId, spotId, customLatitude, customLongitude } = req.body;
     const photoPath = req.file ? `/uploads/${req.file.filename}` : null;
 
     if (!userId) {
@@ -170,8 +191,8 @@ app.post('/fish', upload.single('photo'), (req, res) => {
         return res.status(400).json({ error: 'All fields (species, size, weight, catchMethod, location, date) are required' });
     }
 
-    db.run(`INSERT INTO fish (userId, species, size, weight, catchMethod, location, date, photoPath, folderId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, species, size, weight, catchMethod, location, date, photoPath, folderId || null],
+    db.run(`INSERT INTO fish (userId, species, size, weight, catchMethod, location, date, photoPath, folderId, spotId, customLatitude, customLongitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, species, size, weight, catchMethod, location, date, photoPath, folderId || null, spotId || null, customLatitude || null, customLongitude || null],
         (err) => {
             if (err) {
                 console.error('POST /fish - Database error:', err.message);
@@ -265,7 +286,6 @@ app.delete('/folder/:id', (req, res) => {
             return res.status(403).json({ error: 'Unauthorized to delete this folder' });
         }
 
-        // Delete folder and update fish entries
         db.run('UPDATE fish SET folderId = NULL WHERE folderId = ?', [folderId], (err) => {
             if (err) {
                 console.error('DELETE /folder - Update fish error:', err.message);
@@ -277,6 +297,73 @@ app.delete('/folder/:id', (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
                 res.json({ message: 'Folder deleted successfully!' });
+            });
+        });
+    });
+});
+
+app.get('/spots', (req, res) => {
+    if (!db) return res.status(500).json({ error: 'Database not available' });
+    const userId = req.query.userId;
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+    }
+    db.all('SELECT * FROM spots WHERE userId = ?', [userId], (err, rows) => {
+        if (err) {
+            console.error('GET /spots error:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows || []);
+    });
+});
+
+app.post('/spot', (req, res) => {
+    if (!db) return res.status(500).json({ error: 'Database not available' });
+    const { userId, name, latitude, longitude } = req.body;
+    if (!userId || !name || !latitude || !longitude) {
+        return res.status(400).json({ error: 'User ID, name, latitude, and longitude are required' });
+    }
+    db.run('INSERT INTO spots (userId, name, latitude, longitude) VALUES (?, ?, ?, ?)', [userId, name, latitude, longitude], (err) => {
+        if (err) {
+            console.error('POST /spot - Database error:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ message: 'Spot created successfully!' });
+    });
+});
+
+app.delete('/spot/:id', (req, res) => {
+    if (!db) return res.status(500).json({ error: 'Database not available' });
+    const spotId = req.params.id;
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    db.get('SELECT userId FROM spots WHERE id = ?', [spotId], (err, row) => {
+        if (err) {
+            console.error('DELETE /spot - Database error:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        if (!row) {
+            return res.status(404).json({ error: 'Spot not found' });
+        }
+        if (row.userId !== userId) {
+            return res.status(403).json({ error: 'Unauthorized to delete this spot' });
+        }
+
+        db.run('UPDATE fish SET spotId = NULL WHERE spotId = ?', [spotId], (err) => {
+            if (err) {
+                console.error('DELETE /spot - Update fish error:', err.message);
+                return res.status(500).json({ error: err.message });
+            }
+            db.run('DELETE FROM spots WHERE id = ?', [spotId], (err) => {
+                if (err) {
+                    console.error('DELETE /spot - Database error:', err.message);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ message: 'Spot deleted successfully!' });
             });
         });
     });

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Tracker</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <div class="container">
@@ -20,8 +22,19 @@
             <p id="authStatus"></p>
         </div>
 
-        <!-- Fish Form and Folders (hidden until logged in) -->
+        <!-- Fish Form, Folders, and Spots (hidden until logged in) -->
         <div id="fishFormSection" style="display: none;">
+            <!-- Favorite Spots -->
+            <h2>Favorite Fishing Spots</h2>
+            <div id="map" style="height: 300px;"></div>
+            <div>
+                <input type="text" id="spotName" placeholder="Spot Name">
+                <input type="number" id="spotLatitude" placeholder="Latitude" step="any">
+                <input type="number" id="spotLongitude" placeholder="Longitude" step="any">
+                <button onclick="createSpot()">Save Spot</button>
+            </div>
+            <div id="spotList"></div>
+
             <!-- Folder Management -->
             <h2>Folders</h2>
             <div>
@@ -47,7 +60,7 @@
                 <input type="text" id="weight" required>
                 <label for="catchMethod">Catch Method:</label>
                 <input type="text" id="catchMethod" required>
-                <label for="location">Location:</label>
+                <label for="location">Location (e.g., Lake Name):</label>
                 <input type="text" id="location" required>
                 <label for="date">Date Caught:</label>
                 <input type="date" id="date" required>
@@ -57,11 +70,21 @@
                 <select id="folderId">
                     <option value="">No Folder</option>
                 </select>
+                <label for="spotId">Favorite Spot:</label>
+                <select id="spotId">
+                    <option value="">No Spot</option>
+                </select>
+                <label for="customLatitude">Custom Latitude (if no spot selected):</label>
+                <input type="number" id="customLatitude" step="any">
+                <label for="customLongitude">Custom Longitude (if no spot selected):</label>
+                <input type="number" id="customLongitude" step="any">
                 <button type="submit">Add Fish</button>
             </form>
             <div id="fishList"></div>
         </div>
     </div>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
@@ -80,6 +103,8 @@
         const auth = getAuth(app);
 
         let currentUser = null;
+        let map;
+        let marker;
 
         window.signUp = function() {
             const email = document.getElementById('email').value;
@@ -125,6 +150,8 @@
             if (currentUser) {
                 authStatus.textContent = `Logged in as: ${currentUser.email}`;
                 fishFormSection.style.display = 'block';
+                initMap();
+                loadSpots(currentUser.uid);
                 loadFolders(currentUser.uid);
                 loadFish(currentUser.uid);
             } else {
@@ -132,8 +159,11 @@
                 fishFormSection.style.display = 'none';
                 document.getElementById('fishList').innerHTML = '';
                 document.getElementById('folderList').innerHTML = '';
+                document.getElementById('spotList').innerHTML = '';
                 document.getElementById('filterFolder').innerHTML = '<option value="">All Folders</option>';
                 document.getElementById('folderId').innerHTML = '<option value="">No Folder</option>';
+                document.getElementById('spotId').innerHTML = '<option value="">No Spot</option>';
+                if (map) map.remove();
             }
         }
 
@@ -141,6 +171,105 @@
             currentUser = user;
             updateAuthStatus();
         });
+
+        function initMap() {
+            if (map) map.remove();
+            map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            map.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+                document.getElementById('spotLatitude').value = lat.toFixed(6);
+                document.getElementById('spotLongitude').value = lng.toFixed(6);
+            });
+        }
+
+        async function loadSpots(userId) {
+            try {
+                const response = await fetch(`/spots?userId=${userId}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const spots = await response.json();
+                const spotListDiv = document.getElementById('spotList');
+                const spotSelect = document.getElementById('spotId');
+                spotListDiv.innerHTML = '';
+                spotSelect.innerHTML = '<option value="">No Spot</option>';
+
+                spots.forEach(spot => {
+                    // Spot List with Delete Button
+                    const spotDiv = document.createElement('div');
+                    spotDiv.innerHTML = `<span>${spot.name} (${spot.latitude}, ${spot.longitude})</span> <button onclick="deleteSpot(${spot.id}, '${userId}')">Delete</button>`;
+                    spotListDiv.appendChild(spotDiv);
+
+                    // Add marker to map
+                    L.marker([spot.latitude, spot.longitude])
+                        .addTo(map)
+                        .bindPopup(spot.name);
+
+                    // Spot Dropdown for Adding Fish
+                    const option = document.createElement('option');
+                    option.value = spot.id;
+                    option.textContent = spot.name;
+                    spotSelect.appendChild(option);
+                });
+
+                if (spots.length > 0) {
+                    const bounds = spots.map(spot => [spot.latitude, spot.longitude]);
+                    map.fitBounds(bounds);
+                }
+            } catch (err) {
+                console.error('Error loading spots:', err);
+            }
+        }
+
+        window.createSpot = async function() {
+            if (!currentUser) {
+                alert('Please log in to create a spot.');
+                return;
+            }
+            const name = document.getElementById('spotName').value;
+            const latitude = document.getElementById('spotLatitude').value;
+            const longitude = document.getElementById('spotLongitude').value;
+            if (!name || !latitude || !longitude) {
+                alert('Please enter a spot name, latitude, and longitude.');
+                return;
+            }
+            try {
+                const response = await fetch('/spot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser.uid, name, latitude, longitude })
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                alert(result.message);
+                document.getElementById('spotName').value = '';
+                document.getElementById('spotLatitude').value = '';
+                document.getElementById('spotLongitude').value = '';
+                if (marker) map.removeLayer(marker);
+                loadSpots(currentUser.uid);
+            } catch (err) {
+                alert('Error creating spot: ' + err.message);
+            }
+        };
+
+        window.deleteSpot = async function(spotId, userId) {
+            if (confirm('Are you sure you want to delete this spot? Fish entries will lose this spot association.')) {
+                try {
+                    const response = await fetch(`/spot/${spotId}?userId=${userId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    loadSpots(userId);
+                    loadFish(userId);
+                } catch (err) {
+                    alert('Error deleting spot: ' + err.message);
+                }
+            }
+        };
 
         async function loadFolders(userId) {
             try {
@@ -154,18 +283,15 @@
                 folderSelect.innerHTML = '<option value="">No Folder</option>';
                 filterFolderSelect.innerHTML = '<option value="">All Folders</option>';
                 folders.forEach(folder => {
-                    // Folder List with Delete Button
                     const folderDiv = document.createElement('div');
                     folderDiv.innerHTML = `<span>${folder.name}</span> <button onclick="deleteFolder(${folder.id}, '${userId}')">Delete</button>`;
                     folderListDiv.appendChild(folderDiv);
 
-                    // Folder Dropdown for Adding Fish
                     const option = document.createElement('option');
                     option.value = folder.id;
                     option.textContent = folder.name;
                     folderSelect.appendChild(option);
 
-                    // Folder Dropdown for Filtering
                     const filterOption = document.createElement('option');
                     filterOption.value = folder.id;
                     filterOption.textContent = folder.name;
@@ -233,6 +359,9 @@
             formData.append('photo', document.getElementById('photo').files[0]);
             formData.append('userId', currentUser.uid);
             formData.append('folderId', document.getElementById('folderId').value);
+            formData.append('spotId', document.getElementById('spotId').value);
+            formData.append('customLatitude', document.getElementById('customLatitude').value);
+            formData.append('customLongitude', document.getElementById('customLongitude').value);
 
             try {
                 const response = await fetch('/fish', { method: 'POST', body: formData });
@@ -259,6 +388,11 @@
                 fishList.forEach(fish => {
                     const fishCard = document.createElement('div');
                     fishCard.className = 'fish-card';
+                    const locationInfo = fish.spotId ? 
+                        `<p>Favorite Spot: ${fish.spotName} (${fish.spotLatitude}, ${fish.spotLongitude})</p>` : 
+                        (fish.customLatitude && fish.customLongitude ? 
+                            `<p>Location Coordinates: (${fish.customLatitude}, ${fish.customLongitude})</p>` : '');
+                    const mapId = `map-${fish.id}`;
                     fishCard.innerHTML = `
                         ${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}
                         <div class="fish-details">
@@ -267,11 +401,24 @@
                             <p>Weight: ${fish.weight}</p>
                             <p>Caught: ${fish.catchMethod}</p>
                             <p>Location: ${fish.location}</p>
+                            ${locationInfo}
+                            <div id="${mapId}" class="fish-map" style="height: 150px; display: ${fish.spotId || (fish.customLatitude && fish.customLongitude) ? 'block' : 'none'};"></div>
                             <p>Date: ${fish.date}</p>
                             <button onclick="deleteFish(${fish.id}, '${userId}')">Delete</button>
                         </div>
                     `;
                     fishListDiv.appendChild(fishCard);
+
+                    // Initialize map for fish entry if location exists
+                    if (fish.spotId || (fish.customLatitude && fish.customLongitude)) {
+                        const lat = fish.spotId ? fish.spotLatitude : fish.customLatitude;
+                        const lng = fish.spotId ? fish.spotLongitude : fish.customLongitude;
+                        const fishMap = L.map(mapId).setView([lat, lng], 13);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        }).addTo(fishMap);
+                        L.marker([lat, lng]).addTo(fishMap);
+                    }
                 });
             } catch (err) {
                 console.error('Error loading fish:', err);
