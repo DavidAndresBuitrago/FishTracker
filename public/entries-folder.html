@@ -7,27 +7,45 @@
     <link rel="stylesheet" href="/styles.css">
     <style>
         .hidden { display: none; }
+        #catchList { margin-top: 20px; }
+        .catch-entry { margin: 5px 0; padding: 5px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
     <h1>Fish Tracker - Entries</h1>
 
     <div id="contentSection" class="hidden">
-        <p>Your fishing entries will be listed here.</p>
-        <!-- Add your existing content or functionality here -->
+        <h2>Your Catches</h2>
+        <div id="catchList"></div>
         <p><a href="index.html">Back to Dashboard</a></p>
     </div>
 
     <script>
         const contentSection = document.getElementById('contentSection');
+        const catchList = document.getElementById('catchList');
 
         fetch('/api/user').then(res => res.json()).then(data => {
             if (data.loggedIn) {
                 contentSection.classList.remove('hidden');
+                loadCatches();
             } else {
                 window.location.href = '/sign-in.html';
             }
         });
+
+        function loadCatches() {
+            fetch('/api/catches').then(res => res.json()).then(data => {
+                if (data.catches) {
+                    catchList.innerHTML = '';
+                    data.catches.forEach(catchItem => {
+                        const div = document.createElement('div');
+                        div.className = 'catch-entry';
+                        div.textContent = `${catchItem.date}: ${catchItem.fishType} - ${catchItem.weight} lbs`;
+                        catchList.appendChild(div);
+                    });
+                }
+            });
+        }
     </script>
 </body>
 </html>

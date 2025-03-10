@@ -24,6 +24,7 @@
 
     <script>
         const contentSection = document.getElementById('contentSection');
+        const catchForm = document.getElementById('catchForm');
 
         fetch('/api/user').then(res => res.json()).then(data => {
             if (data.loggedIn) {
@@ -33,7 +34,22 @@
             }
         });
 
-        // Add your existing form submission logic here if any
+        catchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(catchForm);
+            fetch('/api/log-catch', {
+                method: 'POST',
+                body: JSON.stringify({
+                    date: formData.get('date'),
+                    fishType: formData.get('fishType'),
+                    weight: formData.get('weight')
+                }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(res => res.json()).then(data => {
+                alert(data.message || data.error);
+                if (data.message) catchForm.reset();
+            });
+        });
     </script>
 </body>
 </html>
