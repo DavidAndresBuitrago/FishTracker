@@ -139,7 +139,7 @@ const upload = multer({ storage: storage || { destination: '/tmp/' } });
 app.use(express.static('public'));
 app.use('/uploads', express.static('public/uploads'));
 
-// CSP header as fallback
+// CSP header to resolve potential 'unsafe-eval' issues
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',

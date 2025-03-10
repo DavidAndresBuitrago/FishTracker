@@ -25,12 +25,12 @@
         import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
         const firebaseConfig = {
-            apiKey: "AIzaSyBCXM5cUQxCU8InN0QSLQXcRLm1GiFbW1Y",
-            authDomain: "fishtracker-9e522.firebaseapp.com",
-            projectId: "fishtracker-9e522",
-            storageBucket: "fishtracker-9e522.firebasestorage.app",
-            messagingSenderId: "407930383316",
-            appId: "1:407930383316:web:c76cda3165da243d25c441"
+            apiKey: "your-actual-api-key",
+            authDomain: "your-auth-domain.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket.appspot.com",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -46,6 +46,13 @@
                 }
                 const content = await response.text();
                 document.getElementById('content').innerHTML = content;
+                // Reinitialize scripts for the loaded page if needed
+                if (page === 'favorite-spots.html') {
+                    const script = document.createElement('script');
+                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    script.defer = true;
+                    document.body.appendChild(script);
+                }
             } catch (err) {
                 console.error('Error loading page:', err);
                 document.getElementById('content').innerHTML = `<p>Error loading ${page}. Please try again. (${err.message})</p>`;
@@ -89,6 +96,11 @@
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
             updateAuthStatus();
+        });
+
+        // Initial load
+        window.addEventListener('load', () => {
+            updateAuthStatus(); // Ensure initial state is set
         });
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
