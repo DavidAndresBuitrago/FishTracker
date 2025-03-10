@@ -143,12 +143,18 @@ app.use('/uploads', express.static('public/uploads'));
 app.use((req, res, next) => {
     res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self' 'unsafe-eval' https://www.gstatic.com https://unpkg.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:;"
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-eval' https://www.gstatic.com https://unpkg.com; " +
+        "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; " +
+        "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
+        "img-src 'self' data: https://*.googleapis.com; " +
+        "frame-src 'self' https://*.firebaseio.com; " +
+        "report-uri /csp-report;" // Optional: Add a reporting endpoint if needed
     );
     next();
 });
 
-// Existing API routes (unchanged from previous version)
+// Existing API routes (unchanged)
 app.get('/fish', (req, res) => {
     if (!db) return res.status(500).json({ error: 'Database not available' });
     const userId = req.query.userId;
