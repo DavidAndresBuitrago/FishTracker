@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fish Tracker - Entries & Folders</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <h2>Folders</h2>
+        <div class="entries-folders-container">
+            <div>
+                <input type="text" id="folderName" placeholder="New Folder Name">
+                <button onclick="createFolder()">Create Folder</button>
+            </div>
+            <div id="folderList"></div>
+            <div>
+                <label for="filterFolder">Filter by Folder:</label>
+                <select id="filterFolder" onchange="loadFish()">
+                    <option value="">All Folders</option>
+                </select>
+            </div>
+            <h2>Fish Entries</h2>
+            <div id="fishList"></div>
+        </div>
+    </div>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "your-actual-api-key",
+            authDomain: "your-auth-domain.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket.appspot.com",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                loadFolders();
+                loadFish();
+            } else {
+                alert('Please log in to view entries and folders.');
+                window.location.href = '/sign-in.html';
+            }
+        });
+
+        async function loadFolders() {
+            try {
+                const response = await fetch(`/folders?userId=${currentUser.uid}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const folders = await response.json();
+                const folderListDiv = document.getElementById('folderList');
+                const filterFolderSelect = document.getElementById('filterFolder');
+                folderListDiv.innerHTML = '';
+                filterFolderSelect.innerHTML = '<option value="">All Folders</option>';
+                folders.forEach(folder => {
+                    const folderDiv = document.createElement('div');
+                    folderDiv.innerHTML = `<span>${folder.name}</span> <button onclick="deleteFolder(${folder.id})">Delete</button>`;
+                    folderListDiv.appendChild(folderDiv);
+                    const option = document.createElement('option');
+                    option.value = folder.id;
+                    option.textContent = folder.name;
+                    filterFolderSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error loading folders:', err);
+            }
+        }
+
+        window.createFolder = async function() {
+            if (!currentUser) {
+                alert('Please log in to create a folder.');
+                return;
+            }
+            const name = document.getElementById('folderName').value;
+            if (!name) {
+                alert('Please enter a folder name.');
+                return;
+            }
+            try {
+                const response = await fetch('/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser.uid, name })
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                alert(result.message);
+                document.getElementById('folderName').value = '';
+                loadFolders();
+                loadFish();
+            } catch (err) {
+                alert('Error creating folder: ' + err.message);
+            }
+        };
+
+        window.deleteFolder = async function(folderId) {
+            if (confirm('Are you sure you want to delete this folder?')) {
+                try {
+                    const response = await fetch(`/folder/${folderId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    loadFolders();
+                    loadFish();
+                } catch (err) {
+                    alert('Error deleting folder: ' + err.message);
+                }
+            }
+        };
+
+        async function loadFish() {
+            try {
+                const folderId = document.getElementById('filterFolder').value;
+                const url = folderId ? `/fish?userId=${currentUser.uid}&folderId=${folderId}` : `/fish?userId=${currentUser.uid}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const fishList = await response.json();
+                const fishListDiv = document.getElementById('fishList');
+                fishListDiv.innerHTML = '';
+                fishList.forEach(fish => {
+                    const fishCard = document.createElement('div');
+                    fishCard.className = 'fish-card';
+                    const locationInfo = fish.spotId ?
+                        `<p>Favorite Spot: ${fish.spotName} (${fish.spotLatitude}, ${fish.spotLongitude})</p>` :
+                        (fish.customLatitude && fish.customLongitude ?
+                            `<p>Location Coordinates: (${fish.customLatitude}, ${fish.customLongitude})</p>` : '');
+                    const mapId = `map-${fish.id}`;
+                    fishCard.innerHTML = `
+                        ${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}
+                        <div class="fish-details">
+                            <h3>${fish.species}</h3>
+                            <p>Size: ${fish.size}</p>
+                            <p>Weight: ${fish.weight}</p>
+                            <p>Caught: ${fish.catchMethod}</p>
+                            <p>Location: ${fish.location}</p>
+                            ${locationInfo}
+                            <div id="${mapId}" class="fish-map" style="height: 150px; display: ${fish.spotId || (fish.customLatitude && fish.customLongitude) ? 'block' : 'none'};"></div>
+                            <p>Date: ${fish.date}</p>
+                            <button onclick="deleteFish(${fish.id})">Delete</button>
+                        </div>
+                    `;
+                    fishListDiv.appendChild(fishCard);
+
+                    if (fish.spotId || (fish.customLatitude && fish.customLongitude)) {
+                        const lat = fish.spotId ? fish.spotLatitude : fish.customLatitude;
+                        const lng = fish.spotId ? fish.spotLongitude : fish.customLongitude;
+                        const fishMap = L.map(mapId).setView([lat, lng], 13);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        }).addTo(fishMap);
+                        L.marker([lat, lng]).addTo(fishMap);
+                    }
+                });
+            } catch (err) {
+                console.error('Error loading fish:', err);
+            }
+        }
+
+        window.deleteFish = async function(fishId) {
+            if (confirm('Are you sure you want to delete this fish entry?')) {
+                try {
+                    const response = await fetch(`/fish/${fishId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    loadFish();
+                } catch (err) {
+                    alert('Error deleting fish: ' + err.message);
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>

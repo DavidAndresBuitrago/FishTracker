@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fish Tracker - Log Entry</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Add Fish</h2>
+        <div class="log-entry-container">
+            <form id="fishForm" enctype="multipart/form-data">
+                <label for="species">Species:</label>
+                <input type="text" id="species" required>
+                <label for="size">Size (e.g., 12 inches):</label>
+                <input type="text" id="size" required>
+                <label for="weight">Weight (e.g., 2 lbs):</label>
+                <input type="text" id="weight" required>
+                <label for="catchMethod">Catch Method:</label>
+                <input type="text" id="catchMethod" required>
+                <label for="location">Location (e.g., Lake Name):</label>
+                <input type="text" id="location" required>
+                <label for="date">Date Caught:</label>
+                <input type="date" id="date" required>
+                <label for="photo">Photo:</label>
+                <input type="file" id="photo" accept="image/*">
+                <label for="folderId">Folder:</label>
+                <select id="folderId">
+                    <option value="">No Folder</option>
+                </select>
+                <label for="spotId">Favorite Spot:</label>
+                <select id="spotId">
+                    <option value="">No Spot</option>
+                </select>
+                <label for="customLatitude">Custom Latitude (if no spot selected):</label>
+                <input type="number" id="customLatitude" step="any">
+                <label for="customLongitude">Custom Longitude (if no spot selected):</label>
+                <input type="number" id="customLongitude" step="any">
+                <button type="submit">Add Fish</button>
+            </form>
+        </div>
+    </div>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "your-actual-api-key",
+            authDomain: "your-auth-domain.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket.appspot.com",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                loadSpots();
+                loadFolders();
+            } else {
+                alert('Please log in to log a fish entry.');
+                window.location.href = '/sign-in.html';
+            }
+        });
+
+        document.getElementById('fishForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) {
+                alert('Please log in to add a fish.');
+                return;
+            }
+            const formData = new FormData();
+            formData.append('species', document.getElementById('species').value);
+            formData.append('size', document.getElementById('size').value);
+            formData.append('weight', document.getElementById('weight').value);
+            formData.append('catchMethod', document.getElementById('catchMethod').value);
+            formData.append('location', document.getElementById('location').value);
+            formData.append('date', document.getElementById('date').value);
+            formData.append('photo', document.getElementById('photo').files[0]);
+            formData.append('userId', currentUser.uid);
+            formData.append('folderId', document.getElementById('folderId').value);
+            formData.append('spotId', document.getElementById('spotId').value);
+            formData.append('customLatitude', document.getElementById('customLatitude').value);
+            formData.append('customLongitude', document.getElementById('customLongitude').value);
+
+            try {
+                const response = await fetch('/fish', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const result = await response.json();
+                if (!result || !result.message) throw new Error('Invalid response from server');
+                alert(result.message);
+                document.getElementById('fishForm').reset();
+            } catch (err) {
+                alert('Error adding fish: ' + err.message);
+            }
+        });
+
+        async function loadSpots() {
+            try {
+                const response = await fetch(`/spots?userId=${currentUser.uid}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const spots = await response.json();
+                const spotSelect = document.getElementById('spotId');
+                spotSelect.innerHTML = '<option value="">No Spot</option>';
+                spots.forEach(spot => {
+                    const option = document.createElement('option');
+                    option.value = spot.id;
+                    option.textContent = spot.name;
+                    spotSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error loading spots:', err);
+            }
+        }
+
+        async function loadFolders() {
+            try {
+                const response = await fetch(`/folders?userId=${currentUser.uid}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const folders = await response.json();
+                const folderSelect = document.getElementById('folderId');
+                folderSelect.innerHTML = '<option value="">No Folder</option>';
+                folders.forEach(folder => {
+                    const option = document.createElement('option');
+                    option.value = folder.id;
+                    option.textContent = folder.name;
+                    folderSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.error('Error loading folders:', err);
+            }
+        }
+    </script>
+</body>
+</html>

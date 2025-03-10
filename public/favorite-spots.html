@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fish Tracker - Favorite Spots</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <h2>Favorite Fishing Spots</h2>
+        <div class="favorite-spots-container">
+            <div id="map" style="height: 300px;"></div>
+            <div>
+                <input type="text" id="spotName" placeholder="Spot Name">
+                <input type="number" id="spotLatitude" placeholder="Latitude" step="any">
+                <input type="number" id="spotLongitude" placeholder="Longitude" step="any">
+                <button onclick="createSpot()">Save Spot</button>
+            </div>
+            <div id="spotList"></div>
+        </div>
+    </div>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "your-actual-api-key",
+            authDomain: "your-auth-domain.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket.appspot.com",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                initMap();
+                loadSpots();
+            } else {
+                alert('Please log in to view or manage favorite spots.');
+                window.location.href = '/sign-in.html';
+            }
+        });
+
+        function initMap() {
+            const map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            let marker;
+            map.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+                document.getElementById('spotLatitude').value = lat.toFixed(6);
+                document.getElementById('spotLongitude').value = lng.toFixed(6);
+            });
+
+            window.createSpot = async function() {
+                if (!currentUser) {
+                    alert('Please log in to create a spot.');
+                    return;
+                }
+                const name = document.getElementById('spotName').value;
+                const latitude = document.getElementById('spotLatitude').value;
+                const longitude = document.getElementById('spotLongitude').value;
+                if (!name || !latitude || !longitude) {
+                    alert('Please enter a spot name, latitude, and longitude.');
+                    return;
+                }
+                try {
+                    const response = await fetch('/spot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: currentUser.uid, name, latitude, longitude })
+                    });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    alert(result.message);
+                    document.getElementById('spotName').value = '';
+                    document.getElementById('spotLatitude').value = '';
+                    document.getElementById('spotLongitude').value = '';
+                    if (marker) map.removeLayer(marker);
+                    loadSpots();
+                } catch (err) {
+                    alert('Error creating spot: ' + err.message);
+                }
+            };
+
+            async function loadSpots() {
+                try {
+                    const response = await fetch(`/spots?userId=${currentUser.uid}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const spots = await response.json();
+                    const spotListDiv = document.getElementById('spotList');
+                    spotListDiv.innerHTML = '';
+                    spots.forEach(spot => {
+                        const spotDiv = document.createElement('div');
+                        spotDiv.innerHTML = `<span>${spot.name} (${spot.latitude}, ${spot.longitude})</span> <button onclick="deleteSpot(${spot.id})">Delete</button>`;
+                        spotListDiv.appendChild(spotDiv);
+                        L.marker([spot.latitude, spot.longitude])
+                            .addTo(map)
+                            .bindPopup(spot.name);
+                    });
+                    if (spots.length > 0) {
+                        const bounds = spots.map(spot => [spot.latitude, spot.longitude]);
+                        map.fitBounds(bounds);
+                    }
+                } catch (err) {
+                    console.error('Error loading spots:', err);
+                }
+            }
+
+            window.deleteSpot = async function(spotId) {
+                if (confirm('Are you sure you want to delete this spot?')) {
+                    try {
+                        const response = await fetch(`/spot/${spotId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const result = await response.json();
+                        alert(result.message);
+                        loadSpots();
+                    } catch (err) {
+                        alert('Error deleting spot: ' + err.message);
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>
