@@ -1,101 +1,43 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    margin: 0;
     padding: 20px;
 }
-.container {
-    max-width: 800px;
-    margin: auto;
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
+
 h1, h2 {
-    text-align: center;
     color: #333;
 }
-nav {
-    margin-bottom: 20px;
+
+form {
+    margin: 20px 0;
 }
-nav button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    padding: 10px;
-    margin-right: 10px;
-}
-nav button:hover {
-    background-color: #45a049;
-}
-.sign-in-container, .favorite-spots-container, .log-entry-container, .entries-folders-container {
-    display: none;
-}
-#content .sign-in-container, #content .favorite-spots-container, #content .log-entry-container, #content .entries-folders-container {
-    display: block;
-}
+
 label {
     display: block;
-    margin: 10px 0 5px;
+    margin: 10px 0;
 }
-input, button, select {
-    width: 100%;
-    padding: 8px;
-    margin-bottom: 10px;
-    box-sizing: border-box;
+
+input[type="text"], input[type="password"] {
+    padding: 5px;
+    width: 200px;
 }
+
 button {
-    background-color: #4CAF50;
+    padding: 10px 20px;
+    background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 5px;
     cursor: pointer;
 }
+
 button:hover {
-    background-color: #45a049;
+    background-color: #0056b3;
 }
-.fish-card {
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
+
+a {
+    color: #007bff;
+    text-decoration: none;
 }
-.fish-card img {
-    max-width: 100px;
-    margin-right: 20px;
-}
-.fish-details {
-    flex: 1;
-}
-.fish-details button {
-    background-color: #ff4444;
-    width: auto;
-    padding: 5px 10px;
-}
-.fish-details button:hover {
-    background-color: #cc0000;
-}
-.fish-map {
-    width: 100%;
-    margin-top: 10px;
-}
-#folderList div, #spotList div {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px;
-    border-bottom: 1px solid #ddd;
-}
-#folderList button, #spotList button {
-    background-color: #ff4444;
-    width: auto;
-    padding: 5px 10px;
-}
-#folderList button:hover, #spotList button:hover {
-    background-color: #cc0000;
+
+a:hover {
+    text-decoration: underline;
 }

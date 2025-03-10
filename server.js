@@ -1,374 +1,73 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-
+const bcrypt = require('bcryptjs');
+const session = require('express-session');
 const app = express();
-const port = 1212;
+const port = process.env.PORT || 1212;
 
-// Middleware for parsing JSON and URL-encoded data
+// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Determine database path based on environment
-const isLocal = process.env.NODE_ENV !== 'production';
-const dbPath = isLocal ? './fish.db' : '/opt/render/project/src/fish.db';
-
-// Ensure the database file exists or create it
-if (!fs.existsSync(dbPath)) {
-    try {
-        fs.closeSync(fs.openSync(dbPath, 'w')); // Create an empty file
-        console.log('Created database file:', dbPath);
-    } catch (err) {
-        console.error('Failed to create database file:', err.message);
-    }
-} else {
-    console.log('Database file exists:', dbPath);
-}
-
-// Set up SQLite database with verbose error handling
-let db;
-try {
-    db = new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-            console.error('Failed to connect to SQLite database:', err.message);
-            throw err;
-        }
-        console.log('Connected to SQLite database at:', dbPath);
-    });
-} catch (err) {
-    console.error('Database initialization failed, proceeding without database:', err.message);
-    db = null;
-}
-
-// Recreate tables to ensure correct schema
-if (db) {
-    try {
-        db.serialize(() => {
-            db.run('DROP TABLE IF EXISTS fish', (err) => {
-                if (err) console.error('Failed to drop fish table:', err.message);
-                else console.log('Dropped fish table if it existed.');
-            });
-            db.run('DROP TABLE IF EXISTS folders', (err) => {
-                if (err) console.error('Failed to drop folders table:', err.message);
-                else console.log('Dropped folders table if it existed.');
-            });
-            db.run('DROP TABLE IF EXISTS spots', (err) => {
-                if (err) console.error('Failed to drop spots table:', err.message);
-                else console.log('Dropped spots table if it existed.');
-            });
-
-            db.run(`CREATE TABLE folders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                userId TEXT NOT NULL,
-                name TEXT NOT NULL
-            )`, (err) => {
-                if (err) console.error('Folders table creation error:', err.message);
-                else console.log('Folders table created.');
-            });
-
-            db.run(`CREATE TABLE spots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                userId TEXT NOT NULL,
-                name TEXT NOT NULL,
-                latitude REAL NOT NULL,
-                longitude REAL NOT NULL
-            )`, (err) => {
-                if (err) console.error('Spots table creation error:', err.message);
-                else console.log('Spots table created.');
-            });
-
-            db.run(`CREATE TABLE fish (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                userId TEXT NOT NULL,
-                species TEXT,
-                size TEXT,
-                weight TEXT,
-                catchMethod TEXT,
-                location TEXT,
-                date TEXT,
-                photoPath TEXT,
-                folderId INTEGER,
-                spotId INTEGER,
-                customLatitude REAL,
-                customLongitude REAL,
-                FOREIGN KEY (folderId) REFERENCES folders(id),
-                FOREIGN KEY (spotId) REFERENCES spots(id)
-            )`, (err) => {
-                if (err) console.error('Fish table creation error:', err.message);
-                else console.log('Fish table created or verified.');
-            });
-        });
-    } catch (err) {
-        console.error('Table recreation failed:', err.message);
-    }
-}
-
-// Set up file storage for photos
-const uploadDir = isLocal ? './public/uploads/' : '/opt/render/project/src/public/uploads/';
-if (!fs.existsSync(uploadDir)) {
-    try {
-        fs.mkdirSync(uploadDir, { recursive: true });
-        console.log('Created uploads directory:', uploadDir);
-    } catch (err) {
-        console.error('Failed to create uploads directory:', err.message);
-    }
-} else {
-    console.log('Uploads directory exists:', uploadDir);
-}
-
-try {
-    fs.accessSync(uploadDir, fs.constants.W_OK);
-    console.log('Uploads directory is writable.');
-} catch (err) {
-    console.error('Uploads directory is not writable:', err.message);
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage: storage || { destination: '/tmp/' } });
-
-// Serve static files
 app.use(express.static('public'));
-app.use('/uploads', express.static('public/uploads'));
+app.use(session({
+    secret: 'your-secret-key', // Replace with a secure key
+    resave: false,
+    saveUninitialized: false
+}));
 
-// CSP header to resolve potential 'unsafe-eval' issues
-app.use((req, res, next) => {
-    res.setHeader(
-        'Content-Security-Policy',
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-eval' https://www.gstatic.com https://unpkg.com; " +
-        "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; " +
-        "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
-        "img-src 'self' data: https://*.googleapis.com; " +
-        "frame-src 'self' https://*.firebaseio.com; " +
-        "report-uri /csp-report;" // Optional: Add a reporting endpoint if needed
-    );
-    next();
+// SQLite Database
+const db = new sqlite3.Database('fish.db');
+db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+)`);
+
+// Routes for Authentication
+app.post('/api/signup', async (req, res) => {
+    const { username, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    db.run(`INSERT INTO users (username, password) VALUES (?, ?)`, 
+        [username, hashedPassword], (err) => {
+            if (err) return res.status(400).json({ error: 'Username taken' });
+            res.json({ message: 'User created' });
+        });
 });
 
-// Existing API routes (unchanged)
-app.get('/fish', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const userId = req.query.userId;
-    const folderId = req.query.folderId;
-    let query = 'SELECT f.*, s.name as spotName, s.latitude as spotLatitude, s.longitude as spotLongitude FROM fish f LEFT JOIN spots s ON f.spotId = s.id WHERE f.userId = ?';
-    let params = [userId];
-    if (folderId) {
-        query += ' AND f.folderId = ?';
-        params.push(folderId);
-    }
-    db.all(query, params, (err, rows) => {
-        if (err) {
-            console.error('GET /fish error:', err.message);
-            return res.status(500).json({ error: err.message });
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
+        if (err || !user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
-        res.json(rows || []);
+        req.session.userId = user.id;
+        res.json({ message: 'Logged in', redirect: '/index.html' });
     });
 });
 
-app.post('/fish', upload.single('photo'), (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    console.log('POST /fish - Received body:', req.body);
-    console.log('POST /fish - Received file:', req.file);
-    const { species, size, weight, catchMethod, location, date, userId, folderId, spotId, customLatitude, customLongitude } = req.body;
-    const photoPath = req.file ? `/uploads/${req.file.filename}` : null;
-
-    if (!userId) {
-        console.log('POST /fish - Missing userId');
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    if (!species || !size || !weight || !catchMethod || !location || !date) {
-        console.log('POST /fish - Missing required fields');
-        return res.status(400).json({ error: 'All fields (species, size, weight, catchMethod, location, date) are required' });
-    }
-
-    db.run(`INSERT INTO fish (userId, species, size, weight, catchMethod, location, date, photoPath, folderId, spotId, customLatitude, customLongitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, species, size, weight, catchMethod, location, date, photoPath, folderId || null, spotId || null, customLatitude || null, customLongitude || null],
-        (err) => {
-            if (err) {
-                console.error('POST /fish - Database error:', err.message);
-                return res.status(500).json({ error: 'Failed to add fish: ' + err.message });
-            }
-            console.log('POST /fish - Fish added successfully for user:', userId);
-            res.json({ message: 'Fish added successfully!' });
-        }
-    );
+app.post('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ message: 'Logged out', redirect: '/sign-in.html' });
 });
 
-app.delete('/fish/:id', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const fishId = req.params.id;
-    const userId = req.query.userId;
+app.get('/api/user', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
+    res.json({ loggedIn: true });
+});
 
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    db.get('SELECT userId FROM fish WHERE id = ?', [fishId], (err, row) => {
-        if (err) {
-            console.error('DELETE /fish - Database error:', err.message);
-            return res.status(500).json({ error: err.message });
+app.post('/api/change-password', (req, res) => {
+    if (!req.session.userId) return res.status(401).json({ error: 'Not logged in' });
+    const { oldPassword, newPassword } = req.body;
+    db.get(`SELECT * FROM users WHERE id = ?`, [req.session.userId], async (err, user) => {
+        if (err || !(await bcrypt.compare(oldPassword, user.password))) {
+            return res.status(401).json({ error: 'Incorrect old password' });
         }
-        if (!row) {
-            return res.status(404).json({ error: 'Fish entry not found' });
-        }
-        if (row.userId !== userId) {
-            return res.status(403).json({ error: 'Unauthorized to delete this entry' });
-        }
-
-        db.run('DELETE FROM fish WHERE id = ?', [fishId], (err) => {
-            if (err) {
-                console.error('DELETE /fish - Database error:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
-            res.json({ message: 'Fish deleted successfully!' });
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        db.run(`UPDATE users SET password = ? WHERE id = ?`, [hashedPassword, user.id], (err) => {
+            if (err) return res.status(500).json({ error: 'Database error' });
+            res.json({ message: 'Password updated' });
         });
     });
 });
 
-app.get('/folders', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const userId = req.query.userId;
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-    db.all('SELECT * FROM folders WHERE userId = ?', [userId], (err, rows) => {
-        if (err) {
-            console.error('GET /folders error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(rows || []);
-    });
-});
-
-app.post('/folder', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const { userId, name } = req.body;
-    if (!userId || !name) {
-        return res.status(400).json({ error: 'User ID and folder name are required' });
-    }
-    db.run('INSERT INTO folders (userId, name) VALUES (?, ?)', [userId, name], (err) => {
-        if (err) {
-            console.error('POST /folder - Database error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ message: 'Folder created successfully!' });
-    });
-});
-
-app.delete('/folder/:id', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const folderId = req.params.id;
-    const userId = req.query.userId;
-
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    db.get('SELECT userId FROM folders WHERE id = ?', [folderId], (err, row) => {
-        if (err) {
-            console.error('DELETE /folder - Database error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        if (!row) {
-            return res.status(404).json({ error: 'Folder not found' });
-        }
-        if (row.userId !== userId) {
-            return res.status(403).json({ error: 'Unauthorized to delete this folder' });
-        }
-
-        db.run('UPDATE fish SET folderId = NULL WHERE folderId = ?', [folderId], (err) => {
-            if (err) {
-                console.error('DELETE /folder - Update fish error:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
-            db.run('DELETE FROM folders WHERE id = ?', [folderId], (err) => {
-                if (err) {
-                    console.error('DELETE /folder - Database error:', err.message);
-                    return res.status(500).json({ error: err.message });
-                }
-                res.json({ message: 'Folder deleted successfully!' });
-            });
-        });
-    });
-});
-
-app.get('/spots', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const userId = req.query.userId;
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-    db.all('SELECT * FROM spots WHERE userId = ?', [userId], (err, rows) => {
-        if (err) {
-            console.error('GET /spots error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(rows || []);
-    });
-});
-
-app.post('/spot', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const { userId, name, latitude, longitude } = req.body;
-    if (!userId || !name || !latitude || !longitude) {
-        return res.status(400).json({ error: 'User ID, name, latitude, and longitude are required' });
-    }
-    db.run('INSERT INTO spots (userId, name, latitude, longitude) VALUES (?, ?, ?, ?)', [userId, name, latitude, longitude], (err) => {
-        if (err) {
-            console.error('POST /spot - Database error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ message: 'Spot created successfully!' });
-    });
-});
-
-app.delete('/spot/:id', (req, res) => {
-    if (!db) return res.status(500).json({ error: 'Database not available' });
-    const spotId = req.params.id;
-    const userId = req.query.userId;
-
-    if (!userId) {
-        return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    db.get('SELECT userId FROM spots WHERE id = ?', [spotId], (err, row) => {
-        if (err) {
-            console.error('DELETE /spot - Database error:', err.message);
-            return res.status(500).json({ error: err.message });
-        }
-        if (!row) {
-            return res.status(404).json({ error: 'Spot not found' });
-        }
-        if (row.userId !== userId) {
-            return res.status(403).json({ error: 'Unauthorized to delete this spot' });
-        }
-
-        db.run('UPDATE fish SET spotId = NULL WHERE spotId = ?', [spotId], (err) => {
-            if (err) {
-                console.error('DELETE /spot - Update fish error:', err.message);
-                return res.status(500).json({ error: err.message });
-            }
-            db.run('DELETE FROM spots WHERE id = ?', [spotId], (err) => {
-                if (err) {
-                    console.error('DELETE /spot - Database error:', err.message);
-                    return res.status(500).json({ error: err.message });
-                }
-                res.json({ message: 'Spot deleted successfully!' });
-            });
-        });
-    });
-});
-
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-});
+// Start Server
+app.listen(port, () => console.log(`Server running on port ${port}`));

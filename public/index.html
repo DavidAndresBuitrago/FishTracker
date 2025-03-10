@@ -4,104 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Tracker</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Fish Tracker</h1>
-        <nav>
-            <button onclick="loadPage('favorite-spots.html')" id="favoriteSpotsBtn" style="display: none;">Favorite Spots</button>
-            <button onclick="loadPage('log-entry.html')" id="logEntryBtn" style="display: none;">Log Entry</button>
-            <button onclick="loadPage('entries-folders.html')" id="entriesFoldersBtn" style="display: none;">Entries & Folders</button>
-            <button onclick="logOut()" id="logoutBtn" style="display: none;">Log Out</button>
-        </nav>
-        <div id="content"></div>
-        <p id="authStatus"></p>
+    <h1>Fish Tracker</h1>
+
+    <div id="userSection" class="hidden">
+        <p>Welcome! You are logged in.</p>
+        <button id="logoutBtn">Logout</button>
+        <h2>Change Password</h2>
+        <form id="changePasswordForm">
+            <label>Old Password: <input type="password" name="oldPassword" required></label><br>
+            <label>New Password: <input type="password" name="newPassword" required></label><br>
+            <button type="submit">Update Password</button>
+        </form>
+        <p><a href="log-entry.html">Log a Catch</a></p>
+        <p><a href="entries-folder.html">View Entries</a></p>
+        <p><a href="favorite-spots.html">Favorite Spots</a></p>
     </div>
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
-        import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCXM5cUQxCU8InN0QSLQXcRLm1GiFbW1Y",
-            authDomain: "fishtracker-9e522.firebaseapp.com",
-            projectId: "fishtracker-9e522",
-            storageBucket: "fishtracker-9e522.firebasestorage.app",
-            messagingSenderId: "407930383316",
-            appId: "1:407930383316:web:c76cda3165da243d25c441"
-        };
+    <div id="guestSection">
+        <p>Please <a href="sign-in.html">sign in</a> to continue.</p>
+    </div>
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+    <script>
+        const userSection = document.getElementById('userSection');
+        const guestSection = document.getElementById('guestSection');
+        const changePasswordForm = document.getElementById('changePasswordForm');
+        const logoutBtn = document.getElementById('logoutBtn');
 
-        let currentUser = null;
-
-        window.loadPage = async function(page) {
-            try {
-                const response = await fetch(`/${page}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status} - Could not load ${page}`);
-                }
-                const content = await response.text();
-                document.getElementById('content').innerHTML = content;
-                // Reinitialize scripts for the loaded page if needed
-                if (page === 'favorite-spots.html') {
-                    const script = document.createElement('script');
-                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-                    script.defer = true;
-                    document.body.appendChild(script);
-                }
-            } catch (err) {
-                console.error('Error loading page:', err);
-                document.getElementById('content').innerHTML = `<p>Error loading ${page}. Please try again. (${err.message})</p>`;
-            }
-        };
-
-        function updateAuthStatus() {
-            const authStatus = document.getElementById('authStatus');
-            const favoriteSpotsBtn = document.getElementById('favoriteSpotsBtn');
-            const logEntryBtn = document.getElementById('logEntryBtn');
-            const entriesFoldersBtn = document.getElementById('entriesFoldersBtn');
-            const logoutBtn = document.getElementById('logoutBtn');
-            if (currentUser) {
-                authStatus.textContent = `Logged in as: ${currentUser.email}`;
-                favoriteSpotsBtn.style.display = 'inline-block';
-                logEntryBtn.style.display = 'inline-block';
-                entriesFoldersBtn.style.display = 'inline-block';
-                logoutBtn.style.display = 'inline-block';
-                loadPage('entries-folders.html'); // Default page after login
+        // Check if logged in
+        fetch('/api/user').then(res => res.json()).then(data => {
+            if (data.loggedIn) {
+                guestSection.classList.add('hidden');
+                userSection.classList.remove('hidden');
             } else {
-                authStatus.textContent = 'Not logged in';
-                favoriteSpotsBtn.style.display = 'none';
-                logEntryBtn.style.display = 'none';
-                entriesFoldersBtn.style.display = 'none';
-                logoutBtn.style.display = 'none';
-                document.getElementById('content').innerHTML = '<p>Please note: Sign In functionality has been removed. The app now assumes public access or requires manual user ID setup.</p>';
+                userSection.classList.add('hidden');
+                guestSection.classList.remove('hidden');
             }
-        }
-
-        window.logOut = async function() {
-            try {
-                await signOut(auth);
-                currentUser = null;
-                updateAuthStatus();
-                alert('Logged out successfully!');
-            } catch (error) {
-                alert('Error logging out: ' + error.message);
-            }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            updateAuthStatus();
         });
 
-        // Initial load
-        window.addEventListener('load', () => {
-            updateAuthStatus(); // Ensure initial state is set
+        // Logout
+        logoutBtn.addEventListener('click', () => {
+            fetch('/api/logout', { method: 'POST' }).then(res => res.json()).then(data => {
+                window.location.href = data.redirect; // Redirect to sign-in.html
+            });
+        });
+
+        // Change Password
+        changePasswordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(changePasswordForm);
+            fetch('/api/change-password', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    oldPassword: formData.get('oldPassword'), 
+                    newPassword: formData.get('newPassword') 
+                }),
+                headers: { 'Content-Type': 'application/json' }
+            }).then(res => res.json()).then(data => {
+                alert(data.message || data.error);
+                if (data.message) changePasswordForm.reset();
+            });
         });
     </script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
