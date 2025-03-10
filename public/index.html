@@ -36,7 +36,6 @@
         const changePasswordForm = document.getElementById('changePasswordForm');
         const logoutBtn = document.getElementById('logoutBtn');
 
-        // Check if logged in
         fetch('/api/user').then(res => res.json()).then(data => {
             if (data.loggedIn) {
                 guestSection.classList.add('hidden');
@@ -47,14 +46,12 @@
             }
         });
 
-        // Logout
         logoutBtn.addEventListener('click', () => {
             fetch('/api/logout', { method: 'POST' }).then(res => res.json()).then(data => {
                 window.location.href = data.redirect;
             });
         });
 
-        // Change Password
         changePasswordForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const formData = new FormData(changePasswordForm);

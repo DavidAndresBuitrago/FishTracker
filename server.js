@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static('public'));
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key', // Use env variable or fallback
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false
 }));
@@ -69,5 +69,4 @@ app.post('/api/change-password', (req, res) => {
     });
 });
 
-// Start Server
 app.listen(port, () => console.log(`Server running on port ${port}`));
