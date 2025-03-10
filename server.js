@@ -46,7 +46,6 @@ try {
 if (db) {
     try {
         db.serialize(() => {
-            // Drop existing tables
             db.run('DROP TABLE IF EXISTS fish', (err) => {
                 if (err) console.error('Failed to drop fish table:', err.message);
                 else console.log('Dropped fish table if it existed.');
@@ -60,7 +59,6 @@ if (db) {
                 else console.log('Dropped spots table if it existed.');
             });
 
-            // Create folders table
             db.run(`CREATE TABLE folders (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 userId TEXT NOT NULL,
@@ -70,7 +68,6 @@ if (db) {
                 else console.log('Folders table created.');
             });
 
-            // Create spots table
             db.run(`CREATE TABLE spots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 userId TEXT NOT NULL,
@@ -82,7 +79,6 @@ if (db) {
                 else console.log('Spots table created.');
             });
 
-            // Create fish table with spotId, customLatitude, and customLongitude
             db.run(`CREATE TABLE fish (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 userId TEXT NOT NULL,
@@ -122,7 +118,6 @@ if (!fs.existsSync(uploadDir)) {
     console.log('Uploads directory exists:', uploadDir);
 }
 
-// Verify write permissions for the upload directory
 try {
     fs.accessSync(uploadDir, fs.constants.W_OK);
     console.log('Uploads directory is writable.');
@@ -130,7 +125,6 @@ try {
     console.error('Uploads directory is not writable:', err.message);
 }
 
-// Set up Multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadDir);
@@ -154,7 +148,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Routes with database fallback
+// Existing API routes (unchanged from previous version)
 app.get('/fish', (req, res) => {
     if (!db) return res.status(500).json({ error: 'Database not available' });
     const userId = req.query.userId;

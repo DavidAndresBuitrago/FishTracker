@@ -16,6 +16,27 @@ h1, h2 {
     text-align: center;
     color: #333;
 }
+nav {
+    margin-bottom: 20px;
+}
+nav button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 10px;
+    margin-right: 10px;
+}
+nav button:hover {
+    background-color: #45a049;
+}
+.sign-in-container, .favorite-spots-container, .log-entry-container, .entries-folders-container {
+    display: none;
+}
+#content .sign-in-container, #content .favorite-spots-container, #content .log-entry-container, #content .entries-folders-container {
+    display: block;
+}
 label {
     display: block;
     margin: 10px 0 5px;

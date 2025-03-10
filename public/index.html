@@ -5,91 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Tracker</title>
     <link rel="stylesheet" href="styles.css">
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
     <div class="container">
         <h1>Fish Tracker</h1>
-        <!-- Authentication Section -->
-        <div id="authSection">
-            <h2>Sign Up / Log In</h2>
-            <input type="email" id="email" placeholder="Email" required>
-            <input type="password" id="password" placeholder="Password" required>
-            <button onclick="signUp()">Sign Up</button>
-            <button onclick="logIn()">Log In</button>
-            <button onclick="logOut()">Log Out</button>
-            <p id="authStatus"></p>
-        </div>
-
-        <!-- Fish Form, Folders, and Spots (hidden until logged in) -->
-        <div id="fishFormSection" style="display: none;">
-            <!-- Favorite Spots -->
-            <h2>Favorite Fishing Spots</h2>
-            <div id="map" style="height: 300px;"></div>
-            <div>
-                <input type="text" id="spotName" placeholder="Spot Name">
-                <input type="number" id="spotLatitude" placeholder="Latitude" step="any">
-                <input type="number" id="spotLongitude" placeholder="Longitude" step="any">
-                <button onclick="createSpot()">Save Spot</button>
-            </div>
-            <div id="spotList"></div>
-
-            <!-- Folder Management -->
-            <h2>Folders</h2>
-            <div>
-                <input type="text" id="folderName" placeholder="New Folder Name">
-                <button onclick="createFolder()">Create Folder</button>
-            </div>
-            <div id="folderList"></div>
-            <div>
-                <label for="filterFolder">Filter by Folder:</label>
-                <select id="filterFolder" onchange="loadFish(currentUser.uid)">
-                    <option value="">All Folders</option>
-                </select>
-            </div>
-
-            <!-- Fish Form -->
-            <h2>Add Fish</h2>
-            <form id="fishForm" enctype="multipart/form-data">
-                <label for="species">Species:</label>
-                <input type="text" id="species" required>
-                <label for="size">Size (e.g., 12 inches):</label>
-                <input type="text" id="size" required>
-                <label for="weight">Weight (e.g., 2 lbs):</label>
-                <input type="text" id="weight" required>
-                <label for="catchMethod">Catch Method:</label>
-                <input type="text" id="catchMethod" required>
-                <label for="location">Location (e.g., Lake Name):</label>
-                <input type="text" id="location" required>
-                <label for="date">Date Caught:</label>
-                <input type="date" id="date" required>
-                <label for="photo">Photo:</label>
-                <input type="file" id="photo" accept="image/*">
-                <label for="folderId">Folder:</label>
-                <select id="folderId">
-                    <option value="">No Folder</option>
-                </select>
-                <label for="spotId">Favorite Spot:</label>
-                <select id="spotId">
-                    <option value="">No Spot</option>
-                </select>
-                <label for="customLatitude">Custom Latitude (if no spot selected):</label>
-                <input type="number" id="customLatitude" step="any">
-                <label for="customLongitude">Custom Longitude (if no spot selected):</label>
-                <input type="number" id="customLongitude" step="any">
-                <button type="submit">Add Fish</button>
-            </form>
-            <div id="fishList"></div>
-        </div>
+        <nav>
+            <button onclick="loadPage('sign-in.html')">Sign In</button>
+            <button onclick="loadPage('favorite-spots.html')" id="favoriteSpotsBtn" style="display: none;">Favorite Spots</button>
+            <button onclick="loadPage('log-entry.html')" id="logEntryBtn" style="display: none;">Log Entry</button>
+            <button onclick="loadPage('entries-folders.html')" id="entriesFoldersBtn" style="display: none;">Entries & Folders</button>
+            <button onclick="logOut()" id="logoutBtn" style="display: none;">Log Out</button>
+        </nav>
+        <div id="content"></div>
+        <p id="authStatus"></p>
     </div>
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
-        // Replace with your Firebase configuration from Firebase Console
         const firebaseConfig = {
             apiKey: "AIzaSyBCXM5cUQxCU8InN0QSLQXcRLm1GiFbW1Y",
             authDomain: "fishtracker-9e522.firebaseapp.com",
@@ -103,36 +36,50 @@
         const auth = getAuth(app);
 
         let currentUser = null;
-        let map;
-        let marker;
 
-        window.signUp = function() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            createUserWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    currentUser = userCredential.user;
-                    updateAuthStatus();
-                    alert('Account created successfully!');
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
+        window.loadPage = async function(page) {
+            try {
+                const response = await fetch(page);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const content = await response.text();
+                document.getElementById('content').innerHTML = content;
+                if (page === 'sign-in.html') {
+                    initSignIn();
+                } else if (page === 'favorite-spots.html') {
+                    initFavoriteSpots();
+                } else if (page === 'log-entry.html') {
+                    initLogEntry();
+                } else if (page === 'entries-folders.html') {
+                    initEntriesFolders();
+                }
+            } catch (err) {
+                console.error('Error loading page:', err);
+                document.getElementById('content').innerHTML = '<p>Error loading page. Please try again.</p>';
+            }
         };
 
-        window.logIn = function() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            signInWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    currentUser = userCredential.user;
-                    updateAuthStatus();
-                    alert('Logged in successfully!');
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
-        };
+        function updateAuthStatus() {
+            const authStatus = document.getElementById('authStatus');
+            const signInBtn = document.getElementById('favoriteSpotsBtn');
+            const logEntryBtn = document.getElementById('logEntryBtn');
+            const entriesFoldersBtn = document.getElementById('entriesFoldersBtn');
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (currentUser) {
+                authStatus.textContent = `Logged in as: ${currentUser.email}`;
+                signInBtn.style.display = 'inline-block';
+                logEntryBtn.style.display = 'inline-block';
+                entriesFoldersBtn.style.display = 'inline-block';
+                logoutBtn.style.display = 'inline-block';
+                loadPage('entries-folders.html'); // Default page after login
+            } else {
+                authStatus.textContent = 'Not logged in';
+                signInBtn.style.display = 'none';
+                logEntryBtn.style.display = 'none';
+                entriesFoldersBtn.style.display = 'none';
+                logoutBtn.style.display = 'none';
+                loadPage('sign-in.html'); // Default page when logged out
+            }
+        }
 
         window.logOut = function() {
             signOut(auth).then(() => {
@@ -144,41 +91,48 @@
             });
         };
 
-        function updateAuthStatus() {
-            const authStatus = document.getElementById('authStatus');
-            const fishFormSection = document.getElementById('fishFormSection');
-            if (currentUser) {
-                authStatus.textContent = `Logged in as: ${currentUser.email}`;
-                fishFormSection.style.display = 'block';
-                initMap();
-                loadSpots(currentUser.uid);
-                loadFolders(currentUser.uid);
-                loadFish(currentUser.uid);
-            } else {
-                authStatus.textContent = 'Not logged in';
-                fishFormSection.style.display = 'none';
-                document.getElementById('fishList').innerHTML = '';
-                document.getElementById('folderList').innerHTML = '';
-                document.getElementById('spotList').innerHTML = '';
-                document.getElementById('filterFolder').innerHTML = '<option value="">All Folders</option>';
-                document.getElementById('folderId').innerHTML = '<option value="">No Folder</option>';
-                document.getElementById('spotId').innerHTML = '<option value="">No Spot</option>';
-                if (map) map.remove();
-            }
-        }
-
         auth.onAuthStateChanged((user) => {
             currentUser = user;
             updateAuthStatus();
         });
 
-        function initMap() {
-            if (map) map.remove();
-            map = L.map('map').setView([0, 0], 2);
+        function initSignIn() {
+            window.signUp = function() {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                createUserWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        currentUser = userCredential.user;
+                        updateAuthStatus();
+                        alert('Account created successfully!');
+                    })
+                    .catch((error) => {
+                        alert('Error: ' + error.message);
+                    });
+            };
+
+            window.logIn = function() {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                signInWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        currentUser = userCredential.user;
+                        updateAuthStatus();
+                        alert('Logged in successfully!');
+                    })
+                    .catch((error) => {
+                        alert('Error: ' + error.message);
+                    });
+            };
+        }
+
+        function initFavoriteSpots() {
+            const map = L.map('map').setView([0, 0], 2);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
+            let marker;
             map.on('click', function(e) {
                 const { lat, lng } = e.latlng;
                 if (marker) map.removeLayer(marker);
@@ -186,258 +140,288 @@
                 document.getElementById('spotLatitude').value = lat.toFixed(6);
                 document.getElementById('spotLongitude').value = lng.toFixed(6);
             });
-        }
 
-        async function loadSpots(userId) {
-            try {
-                const response = await fetch(`/spots?userId=${userId}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const spots = await response.json();
-                const spotListDiv = document.getElementById('spotList');
-                const spotSelect = document.getElementById('spotId');
-                spotListDiv.innerHTML = '';
-                spotSelect.innerHTML = '<option value="">No Spot</option>';
-
-                spots.forEach(spot => {
-                    // Spot List with Delete Button
-                    const spotDiv = document.createElement('div');
-                    spotDiv.innerHTML = `<span>${spot.name} (${spot.latitude}, ${spot.longitude})</span> <button onclick="deleteSpot(${spot.id}, '${userId}')">Delete</button>`;
-                    spotListDiv.appendChild(spotDiv);
-
-                    // Add marker to map
-                    L.marker([spot.latitude, spot.longitude])
-                        .addTo(map)
-                        .bindPopup(spot.name);
-
-                    // Spot Dropdown for Adding Fish
-                    const option = document.createElement('option');
-                    option.value = spot.id;
-                    option.textContent = spot.name;
-                    spotSelect.appendChild(option);
-                });
-
-                if (spots.length > 0) {
-                    const bounds = spots.map(spot => [spot.latitude, spot.longitude]);
-                    map.fitBounds(bounds);
+            window.createSpot = async function() {
+                if (!currentUser) {
+                    alert('Please log in to create a spot.');
+                    return;
                 }
-            } catch (err) {
-                console.error('Error loading spots:', err);
-            }
-        }
-
-        window.createSpot = async function() {
-            if (!currentUser) {
-                alert('Please log in to create a spot.');
-                return;
-            }
-            const name = document.getElementById('spotName').value;
-            const latitude = document.getElementById('spotLatitude').value;
-            const longitude = document.getElementById('spotLongitude').value;
-            if (!name || !latitude || !longitude) {
-                alert('Please enter a spot name, latitude, and longitude.');
-                return;
-            }
-            try {
-                const response = await fetch('/spot', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser.uid, name, latitude, longitude })
-                });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const result = await response.json();
-                alert(result.message);
-                document.getElementById('spotName').value = '';
-                document.getElementById('spotLatitude').value = '';
-                document.getElementById('spotLongitude').value = '';
-                if (marker) map.removeLayer(marker);
-                loadSpots(currentUser.uid);
-            } catch (err) {
-                alert('Error creating spot: ' + err.message);
-            }
-        };
-
-        window.deleteSpot = async function(spotId, userId) {
-            if (confirm('Are you sure you want to delete this spot? Fish entries will lose this spot association.')) {
+                const name = document.getElementById('spotName').value;
+                const latitude = document.getElementById('spotLatitude').value;
+                const longitude = document.getElementById('spotLongitude').value;
+                if (!name || !latitude || !longitude) {
+                    alert('Please enter a spot name, latitude, and longitude.');
+                    return;
+                }
                 try {
-                    const response = await fetch(`/spot/${spotId}?userId=${userId}`, { method: 'DELETE' });
+                    const response = await fetch('/spot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: currentUser.uid, name, latitude, longitude })
+                    });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const result = await response.json();
                     alert(result.message);
-                    loadSpots(userId);
-                    loadFish(userId);
+                    document.getElementById('spotName').value = '';
+                    document.getElementById('spotLatitude').value = '';
+                    document.getElementById('spotLongitude').value = '';
+                    if (marker) map.removeLayer(marker);
+                    loadSpots();
                 } catch (err) {
-                    alert('Error deleting spot: ' + err.message);
+                    alert('Error creating spot: ' + err.message);
                 }
-            }
-        };
+            };
 
-        async function loadFolders(userId) {
-            try {
-                const response = await fetch(`/folders?userId=${userId}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const folders = await response.json();
-                const folderListDiv = document.getElementById('folderList');
-                const folderSelect = document.getElementById('folderId');
-                const filterFolderSelect = document.getElementById('filterFolder');
-                folderListDiv.innerHTML = '';
-                folderSelect.innerHTML = '<option value="">No Folder</option>';
-                filterFolderSelect.innerHTML = '<option value="">All Folders</option>';
-                folders.forEach(folder => {
-                    const folderDiv = document.createElement('div');
-                    folderDiv.innerHTML = `<span>${folder.name}</span> <button onclick="deleteFolder(${folder.id}, '${userId}')">Delete</button>`;
-                    folderListDiv.appendChild(folderDiv);
-
-                    const option = document.createElement('option');
-                    option.value = folder.id;
-                    option.textContent = folder.name;
-                    folderSelect.appendChild(option);
-
-                    const filterOption = document.createElement('option');
-                    filterOption.value = folder.id;
-                    filterOption.textContent = folder.name;
-                    filterFolderSelect.appendChild(filterOption);
-                });
-            } catch (err) {
-                console.error('Error loading folders:', err);
-            }
-        }
-
-        window.createFolder = async function() {
-            if (!currentUser) {
-                alert('Please log in to create a folder.');
-                return;
-            }
-            const name = document.getElementById('folderName').value;
-            if (!name) {
-                alert('Please enter a folder name.');
-                return;
-            }
-            try {
-                const response = await fetch('/folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser.uid, name })
-                });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const result = await response.json();
-                alert(result.message);
-                document.getElementById('folderName').value = '';
-                loadFolders(currentUser.uid);
-            } catch (err) {
-                alert('Error creating folder: ' + err.message);
-            }
-        };
-
-        window.deleteFolder = async function(folderId, userId) {
-            if (confirm('Are you sure you want to delete this folder? Fish entries will be moved to "No Folder".')) {
+            async function loadSpots() {
                 try {
-                    const response = await fetch(`/folder/${folderId}?userId=${userId}`, { method: 'DELETE' });
+                    const response = await fetch(`/spots?userId=${currentUser.uid}`);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const result = await response.json();
-                    alert(result.message);
-                    loadFolders(userId);
-                    loadFish(userId);
-                } catch (err) {
-                    alert('Error deleting folder: ' + err.message);
-                }
-            }
-        };
-
-        document.getElementById('fishForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) {
-                alert('Please log in to add a fish.');
-                return;
-            }
-            const formData = new FormData();
-            formData.append('species', document.getElementById('species').value);
-            formData.append('size', document.getElementById('size').value);
-            formData.append('weight', document.getElementById('weight').value);
-            formData.append('catchMethod', document.getElementById('catchMethod').value);
-            formData.append('location', document.getElementById('location').value);
-            formData.append('date', document.getElementById('date').value);
-            formData.append('photo', document.getElementById('photo').files[0]);
-            formData.append('userId', currentUser.uid);
-            formData.append('folderId', document.getElementById('folderId').value);
-            formData.append('spotId', document.getElementById('spotId').value);
-            formData.append('customLatitude', document.getElementById('customLatitude').value);
-            formData.append('customLongitude', document.getElementById('customLongitude').value);
-
-            try {
-                const response = await fetch('/fish', { method: 'POST', body: formData });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const result = await response.json();
-                if (!result || !result.message) throw new Error('Invalid response from server');
-                alert(result.message);
-                loadFish(currentUser.uid);
-                document.getElementById('fishForm').reset();
-            } catch (err) {
-                alert('Error adding fish: ' + err.message);
-            }
-        });
-
-        async function loadFish(userId) {
-            try {
-                const folderId = document.getElementById('filterFolder').value;
-                const url = folderId ? `/fish?userId=${userId}&folderId=${folderId}` : `/fish?userId=${userId}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const fishList = await response.json();
-                const fishListDiv = document.getElementById('fishList');
-                fishListDiv.innerHTML = '';
-                fishList.forEach(fish => {
-                    const fishCard = document.createElement('div');
-                    fishCard.className = 'fish-card';
-                    const locationInfo = fish.spotId ? 
-                        `<p>Favorite Spot: ${fish.spotName} (${fish.spotLatitude}, ${fish.spotLongitude})</p>` : 
-                        (fish.customLatitude && fish.customLongitude ? 
-                            `<p>Location Coordinates: (${fish.customLatitude}, ${fish.customLongitude})</p>` : '');
-                    const mapId = `map-${fish.id}`;
-                    fishCard.innerHTML = `
-                        ${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}
-                        <div class="fish-details">
-                            <h3>${fish.species}</h3>
-                            <p>Size: ${fish.size}</p>
-                            <p>Weight: ${fish.weight}</p>
-                            <p>Caught: ${fish.catchMethod}</p>
-                            <p>Location: ${fish.location}</p>
-                            ${locationInfo}
-                            <div id="${mapId}" class="fish-map" style="height: 150px; display: ${fish.spotId || (fish.customLatitude && fish.customLongitude) ? 'block' : 'none'};"></div>
-                            <p>Date: ${fish.date}</p>
-                            <button onclick="deleteFish(${fish.id}, '${userId}')">Delete</button>
-                        </div>
-                    `;
-                    fishListDiv.appendChild(fishCard);
-
-                    // Initialize map for fish entry if location exists
-                    if (fish.spotId || (fish.customLatitude && fish.customLongitude)) {
-                        const lat = fish.spotId ? fish.spotLatitude : fish.customLatitude;
-                        const lng = fish.spotId ? fish.spotLongitude : fish.customLongitude;
-                        const fishMap = L.map(mapId).setView([lat, lng], 13);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        }).addTo(fishMap);
-                        L.marker([lat, lng]).addTo(fishMap);
+                    const spots = await response.json();
+                    const spotListDiv = document.getElementById('spotList');
+                    spotListDiv.innerHTML = '';
+                    spots.forEach(spot => {
+                        const spotDiv = document.createElement('div');
+                        spotDiv.innerHTML = `<span>${spot.name} (${spot.latitude}, ${spot.longitude})</span> <button onclick="deleteSpot(${spot.id})">Delete</button>`;
+                        spotListDiv.appendChild(spotDiv);
+                        L.marker([spot.latitude, spot.longitude])
+                            .addTo(map)
+                            .bindPopup(spot.name);
+                    });
+                    if (spots.length > 0) {
+                        const bounds = spots.map(spot => [spot.latitude, spot.longitude]);
+                        map.fitBounds(bounds);
                     }
-                });
-            } catch (err) {
-                console.error('Error loading fish:', err);
+                } catch (err) {
+                    console.error('Error loading spots:', err);
+                }
             }
+
+            window.deleteSpot = async function(spotId) {
+                if (confirm('Are you sure you want to delete this spot?')) {
+                    try {
+                        const response = await fetch(`/spot/${spotId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const result = await response.json();
+                        alert(result.message);
+                        loadSpots();
+                    } catch (err) {
+                        alert('Error deleting spot: ' + err.message);
+                    }
+                }
+            };
+
+            loadSpots();
         }
 
-        window.deleteFish = async function(fishId, userId) {
-            if (confirm('Are you sure you want to delete this fish entry?')) {
+        function initLogEntry() {
+            document.getElementById('fishForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!currentUser) {
+                    alert('Please log in to add a fish.');
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('species', document.getElementById('species').value);
+                formData.append('size', document.getElementById('size').value);
+                formData.append('weight', document.getElementById('weight').value);
+                formData.append('catchMethod', document.getElementById('catchMethod').value);
+                formData.append('location', document.getElementById('location').value);
+                formData.append('date', document.getElementById('date').value);
+                formData.append('photo', document.getElementById('photo').files[0]);
+                formData.append('userId', currentUser.uid);
+                formData.append('folderId', document.getElementById('folderId').value);
+                formData.append('spotId', document.getElementById('spotId').value);
+                formData.append('customLatitude', document.getElementById('customLatitude').value);
+                formData.append('customLongitude', document.getElementById('customLongitude').value);
+
                 try {
-                    const response = await fetch(`/fish/${fishId}?userId=${userId}`, { method: 'DELETE' });
+                    const response = await fetch('/fish', { method: 'POST', body: formData });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    if (!result || !result.message) throw new Error('Invalid response from server');
+                    alert(result.message);
+                    document.getElementById('fishForm').reset();
+                } catch (err) {
+                    alert('Error adding fish: ' + err.message);
+                }
+            });
+
+            async function loadSpots() {
+                try {
+                    const response = await fetch(`/spots?userId=${currentUser.uid}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const spots = await response.json();
+                    const spotSelect = document.getElementById('spotId');
+                    spotSelect.innerHTML = '<option value="">No Spot</option>';
+                    spots.forEach(spot => {
+                        const option = document.createElement('option');
+                        option.value = spot.id;
+                        option.textContent = spot.name;
+                        spotSelect.appendChild(option);
+                    });
+                } catch (err) {
+                    console.error('Error loading spots:', err);
+                }
+            }
+
+            async function loadFolders() {
+                try {
+                    const response = await fetch(`/folders?userId=${currentUser.uid}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const folders = await response.json();
+                    const folderSelect = document.getElementById('folderId');
+                    folderSelect.innerHTML = '<option value="">No Folder</option>';
+                    folders.forEach(folder => {
+                        const option = document.createElement('option');
+                        option.value = folder.id;
+                        option.textContent = folder.name;
+                        folderSelect.appendChild(option);
+                    });
+                } catch (err) {
+                    console.error('Error loading folders:', err);
+                }
+            }
+
+            loadSpots();
+            loadFolders();
+        }
+
+        function initEntriesFolders() {
+            async function loadFolders() {
+                try {
+                    const response = await fetch(`/folders?userId=${currentUser.uid}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const folders = await response.json();
+                    const folderListDiv = document.getElementById('folderList');
+                    const filterFolderSelect = document.getElementById('filterFolder');
+                    folderListDiv.innerHTML = '';
+                    filterFolderSelect.innerHTML = '<option value="">All Folders</option>';
+                    folders.forEach(folder => {
+                        const folderDiv = document.createElement('div');
+                        folderDiv.innerHTML = `<span>${folder.name}</span> <button onclick="deleteFolder(${folder.id})">Delete</button>`;
+                        folderListDiv.appendChild(folderDiv);
+                        const option = document.createElement('option');
+                        option.value = folder.id;
+                        option.textContent = folder.name;
+                        filterFolderSelect.appendChild(option);
+                    });
+                } catch (err) {
+                    console.error('Error loading folders:', err);
+                }
+            }
+
+            window.createFolder = async function() {
+                if (!currentUser) {
+                    alert('Please log in to create a folder.');
+                    return;
+                }
+                const name = document.getElementById('folderName').value;
+                if (!name) {
+                    alert('Please enter a folder name.');
+                    return;
+                }
+                try {
+                    const response = await fetch('/folder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: currentUser.uid, name })
+                    });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const result = await response.json();
                     alert(result.message);
-                    loadFish(userId);
+                    document.getElementById('folderName').value = '';
+                    loadFolders();
+                    loadFish();
                 } catch (err) {
-                    alert('Error deleting fish: ' + err.message);
+                    alert('Error creating folder: ' + err.message);
+                }
+            };
+
+            window.deleteFolder = async function(folderId) {
+                if (confirm('Are you sure you want to delete this folder?')) {
+                    try {
+                        const response = await fetch(`/folder/${folderId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const result = await response.json();
+                        alert(result.message);
+                        loadFolders();
+                        loadFish();
+                    } catch (err) {
+                        alert('Error deleting folder: ' + err.message);
+                    }
+                }
+            };
+
+            async function loadFish() {
+                try {
+                    const folderId = document.getElementById('filterFolder').value;
+                    const url = folderId ? `/fish?userId=${currentUser.uid}&folderId=${folderId}` : `/fish?userId=${currentUser.uid}`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const fishList = await response.json();
+                    const fishListDiv = document.getElementById('fishList');
+                    fishListDiv.innerHTML = '';
+                    fishList.forEach(fish => {
+                        const fishCard = document.createElement('div');
+                        fishCard.className = 'fish-card';
+                        const locationInfo = fish.spotId ?
+                            `<p>Favorite Spot: ${fish.spotName} (${fish.spotLatitude}, ${fish.spotLongitude})</p>` :
+                            (fish.customLatitude && fish.customLongitude ?
+                                `<p>Location Coordinates: (${fish.customLatitude}, ${fish.customLongitude})</p>` : '');
+                        const mapId = `map-${fish.id}`;
+                        fishCard.innerHTML = `
+                            ${fish.photoPath ? `<img src="${fish.photoPath}" alt="${fish.species}">` : ''}
+                            <div class="fish-details">
+                                <h3>${fish.species}</h3>
+                                <p>Size: ${fish.size}</p>
+                                <p>Weight: ${fish.weight}</p>
+                                <p>Caught: ${fish.catchMethod}</p>
+                                <p>Location: ${fish.location}</p>
+                                ${locationInfo}
+                                <div id="${mapId}" class="fish-map" style="height: 150px; display: ${fish.spotId || (fish.customLatitude && fish.customLongitude) ? 'block' : 'none'};"></div>
+                                <p>Date: ${fish.date}</p>
+                                <button onclick="deleteFish(${fish.id})">Delete</button>
+                            </div>
+                        `;
+                        fishListDiv.appendChild(fishCard);
+
+                        if (fish.spotId || (fish.customLatitude && fish.customLongitude)) {
+                            const lat = fish.spotId ? fish.spotLatitude : fish.customLatitude;
+                            const lng = fish.spotId ? fish.spotLongitude : fish.customLongitude;
+                            const fishMap = L.map(mapId).setView([lat, lng], 13);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                            }).addTo(fishMap);
+                            L.marker([lat, lng]).addTo(fishMap);
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error loading fish:', err);
                 }
             }
-        };
+
+            window.deleteFish = async function(fishId) {
+                if (confirm('Are you sure you want to delete this fish entry?')) {
+                    try {
+                        const response = await fetch(`/fish/${fishId}?userId=${currentUser.uid}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        const result = await response.json();
+                        alert(result.message);
+                        loadFish();
+                    } catch (err) {
+                        alert('Error deleting fish: ' + err.message);
+                    }
+                }
+            };
+
+            loadFolders();
+            loadFish();
+        }
+
+        // Load initial page based on auth state
+        loadPage(currentUser ? 'entries-folders.html' : 'sign-in.html');
     </script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
