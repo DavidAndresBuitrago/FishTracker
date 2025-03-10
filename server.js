@@ -3,13 +3,13 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
-const port = process.env.PORT || 1212;
+const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
 app.use(express.static('public'));
 app.use(session({
-    secret: 'your-secret-key', // Replace with a secure key
+    secret: process.env.SESSION_SECRET || 'your-secret-key', // Use env variable or fallback
     resave: false,
     saveUninitialized: false
 }));
@@ -22,7 +22,7 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
     password TEXT
 )`);
 
-// Routes for Authentication
+// Routes
 app.post('/api/signup', async (req, res) => {
     const { username, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -64,7 +64,7 @@ app.post('/api/change-password', (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         db.run(`UPDATE users SET password = ? WHERE id = ?`, [hashedPassword, user.id], (err) => {
             if (err) return res.status(500).json({ error: 'Database error' });
-            res.json({ message: 'Password updated' });
+            res.json({ message: 'Password updated successfully' });
         });
     });
 });

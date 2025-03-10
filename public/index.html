@@ -50,7 +50,7 @@
         // Logout
         logoutBtn.addEventListener('click', () => {
             fetch('/api/logout', { method: 'POST' }).then(res => res.json()).then(data => {
-                window.location.href = data.redirect; // Redirect to sign-in.html
+                window.location.href = data.redirect;
             });
         });
 
@@ -60,9 +60,9 @@
             const formData = new FormData(changePasswordForm);
             fetch('/api/change-password', {
                 method: 'POST',
-                body: JSON.stringify({ 
-                    oldPassword: formData.get('oldPassword'), 
-                    newPassword: formData.get('newPassword') 
+                body: JSON.stringify({
+                    oldPassword: formData.get('oldPassword'),
+                    newPassword: formData.get('newPassword')
                 }),
                 headers: { 'Content-Type': 'application/json' }
             }).then(res => res.json()).then(data => {
